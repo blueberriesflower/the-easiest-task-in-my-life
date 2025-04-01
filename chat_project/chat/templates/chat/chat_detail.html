@@ -176,13 +176,13 @@ document.getElementById('message-form').addEventListener('submit', function(e) {
 });
 
 // Редактирование сообщения
-document.addEventListener('click', function(e) {
+document.addEventListener('click', async function(e) {
     if (e.target.classList.contains('edit-message')) {
         const messageId = e.target.dataset.messageId;
         const messageDiv = document.querySelector(`.message[data-message-id="${messageId}"]`);
         const currentText = messageDiv.querySelector('.message-text').textContent;
         
-        const newText = prompt('Измените сообщение:', currentText);
+        const newText = prompt('Редактировать сообщение:', currentText);
         if (newText && newText !== currentText) {
             chatSocket.send(JSON.stringify({
                 'type': 'edit_message',
@@ -194,7 +194,7 @@ document.addEventListener('click', function(e) {
     
     // Удаление сообщения
     if (e.target.classList.contains('delete-message')) {
-        if (confirm('Вы уверены, что хотите удалить это сообщение?')) {
+        if (confirm('Удалить это сообщение?')) {
             const messageId = e.target.dataset.messageId;
             chatSocket.send(JSON.stringify({
                 'type': 'delete_message',
@@ -203,6 +203,27 @@ document.addEventListener('click', function(e) {
         }
     }
 });
+
+// Обработчик редактирования
+chatSocket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    
+    if (data.type === 'edit_message') {
+        const messageDiv = document.querySelector(`.message[data-message-id="${data.message_id}"]`);
+        if (messageDiv) {
+            messageDiv.querySelector('.message-text').textContent = data.new_text;
+            // Добавляем отметку об изменении
+            const infoDiv = messageDiv.querySelector('.message-info');
+            infoDiv.innerHTML += ` <small>(изменено ${data.edited_by})</small>`;
+        }
+    }
+    else if (data.type === 'delete_message') {
+        const messageDiv = document.querySelector(`.message[data-message-id="${data.message_id}"]`);
+        if (messageDiv) {
+            messageDiv.remove();
+        }
+    }
+};
 
 // Автопрокрутка чата вниз
 const chatContainer = document.getElementById('chat-container');

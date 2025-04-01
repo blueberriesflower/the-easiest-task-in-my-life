@@ -1,0 +1,60 @@
+{% extends 'chat/base.html' %}
+
+{% block title %}История сообщения{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h4>История изменений сообщения</h4>
+    </div>
+    <div class="card-body">
+        <div class="mb-4">
+            <h5>Текущее сообщение:</h5>
+            <div class="message {% if message.sender == request.user %}sent{% else %}received{% endif %}">
+                <div class="message-info">
+                    <strong>{{ message.sender.username }}</strong>
+                    <small>{{ message.created_at|date:"d.m.Y H:i" }}</small>
+                    {% if message.updated_at != message.created_at %}
+                        <small>(изменено {{ message.updated_at|date:"d.m.Y H:i" }})</small>
+                    {% endif %}
+                </div>
+                <div class="message-text">{{ message.text }}</div>
+                {% if message.media %}
+                    <div class="media-preview">
+                        {% if message.media.url|lower|slice:'-4:' == '.jpg' or message.media.url|lower|slice:'-5:' == '.jpeg' or message.media.url|lower|slice:'-4:' == '.png' or message.media.url|lower|slice:'-4:' == '.gif' %}
+                            <img src="{{ message.media.url }}" alt="Media" class="img-fluid">
+                        {% elif message.media.url|lower|slice:'-4:' == '.mp4' or message.media.url|lower|slice:'-4:' == '.mov' or message.media.url|lower|slice:'-4:' == '.avi' %}
+                            <video controls class="img-fluid">
+                                <source src="{{ message.media.url }}" type="video/mp4">
+                                Ваш браузер не поддерживает видео.
+                            </video>
+                        {% else %}
+                            <a href="{{ message.media.url }}" target="_blank">Скачать файл</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <h5>История изменений:</h5>
+        {% if history %}
+            <div class="list-group">
+                {% for edit in history %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">Изменено пользователем {{ edit.edited_by.username }}</h6>
+                            <small>{{ edit.edited_at|date:"d.m.Y H:i" }}</small>
+                        </div>
+                        <p class="mb-1">Предыдущий текст: {{ edit.old_text }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">Нет истории изменений для этого сообщения.</div>
+        {% endif %}
+    </div>
+    <div class="card-footer">
+        <a href="{% url 'chat_detail' message.chat.id %}" class="btn btn-secondary">Вернуться в чат</a>
+    </div>
+</div>
+{% endblock %}

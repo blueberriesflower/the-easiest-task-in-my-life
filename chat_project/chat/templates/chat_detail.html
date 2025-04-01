@@ -1,0 +1,212 @@
+{% extends 'chat/base.html' %}
+
+{% block title %}{{ chat.name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>{{ chat.name }}</h4>
+        <div>
+            <span class="badge bg-{% if chat.is_group %}info{% else %}secondary{% endif %}">
+                {% if chat.is_group %}Групповой чат{% else %}Личный чат{% endif %}
+            </span>
+            {% if chat.is_group and chat.admin == request.user %}
+                <span class="badge bg-success">Вы администратор</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <div class="chat-container mb-3 p-3 border rounded" id="chat-container">
+            {% for message in messages %}
+                <div class="message {% if message.sender == request.user %}sent{% else %}received{% endif %}" 
+                     data-message-id="{{ message.id }}">
+                    <div class="message-info">
+                        <strong>{{ message.sender.username }}</strong>
+                        <small>{{ message.created_at|date:"d.m.Y H:i" }}</small>
+                        {% if message.updated_at != message.created_at %}
+                            <small>(изменено)</small>
+                        {% endif %}
+                    </div>
+                    <div class="message-text">{{ message.text }}</div>
+                    {% if message.media %}
+                        <div class="media-preview">
+                            {% if message.media.url|lower|slice:'-4:' == '.jpg' or message.media.url|lower|slice:'-5:' == '.jpeg' or message.media.url|lower|slice:'-4:' == '.png' or message.media.url|lower|slice:'-4:' == '.gif' %}
+                                <img src="{{ message.media.url }}" alt="Media" class="img-fluid">
+                            {% elif message.media.url|lower|slice:'-4:' == '.mp4' or message.media.url|lower|slice:'-4:' == '.mov' or message.media.url|lower|slice:'-4:' == '.avi' %}
+                                <video controls class="img-fluid">
+                                    <source src="{{ message.media.url }}" type="video/mp4">
+                                    Ваш браузер не поддерживает видео.
+                                </video>
+                            {% else %}
+                                <a href="{{ message.media.url }}" target="_blank">Скачать файл</a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    <div class="message-actions mt-2">
+                        {% if message.sender == request.user or chat.admin == request.user %}
+                            <button class="btn btn-sm btn-outline-primary edit-message" data-message-id="{{ message.id }}">Изменить</button>
+                            <button class="btn btn-sm btn-outline-danger delete-message" data-message-id="{{ message.id }}">Удалить</button>
+                        {% endif %}
+                        <a href="{% url 'message_history' message.id %}" class="btn btn-sm btn-outline-secondary">История</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <form id="message-form" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="input-group mb-3">
+                {{ form.text }}
+                {{ form.media }}
+                <button type="submit" class="btn btn-primary">Отправить</button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="card-footer">
+        <small class="text-muted">
+            Участники: 
+            {% for member in chat.members.all %}
+                {{ member.username }}{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+        </small>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// WebSocket соединение
+const chatSocket = new WebSocket(
+    'ws://' + window.location.host + '/ws/chat/' + {{ chat.id }} + '/'
+);
+
+// Обработка входящих сообщений
+chatSocket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    const chatContainer = document.getElementById('chat-container');
+    
+    if (data.type === 'chat_message') {
+        // Создаём новый элемент сообщения
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${data.sender === '{{ request.user.username }}' ? 'sent' : 'received'}`;
+        messageDiv.dataset.messageId = data.message_id;
+        
+        messageDiv.innerHTML = `
+            <div class="message-info">
+                <strong>${data.sender}</strong>
+                <small>${data.created_at}</small>
+            </div>
+            <div class="message-text">${data.text}</div>
+            ${data.media_url ? `
+                <div class="media-preview">
+                    <img src="${data.media_url}" alt="Media" class="img-fluid">
+                </div>
+            ` : ''}
+            <div class="message-actions mt-2">
+                ${data.sender === '{{ request.user.username }}' ? `
+                    <button class="btn btn-sm btn-outline-primary edit-message" data-message-id="${data.message_id}">Изменить</button>
+                    <button class="btn btn-sm btn-outline-danger delete-message" data-message-id="${data.message_id}">Удалить</button>
+                ` : ''}
+                <a href="/message/${data.message_id}/history/" class="btn btn-sm btn-outline-secondary">История</a>
+            </div>
+        `;
+        
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    else if (data.type === 'edit_message') {
+        // Обновляем существующее сообщение
+        const messageDiv = document.querySelector(`.message[data-message-id="${data.message_id}"]`);
+        if (messageDiv) {
+            const textDiv = messageDiv.querySelector('.message-text');
+            if (textDiv) textDiv.textContent = data.new_text;
+            
+            const infoDiv = messageDiv.querySelector('.message-info');
+            if (infoDiv) {
+                infoDiv.innerHTML += ` <small>(изменено ${data.edited_by})</small>`;
+            }
+        }
+    }
+    else if (data.type === 'delete_message') {
+        // Удаляем сообщение из интерфейса
+        const messageDiv = document.querySelector(`.message[data-message-id="${data.message_id}"]`);
+        if (messageDiv) {
+            messageDiv.remove();
+        }
+    }
+};
+
+// Обработка ошибок
+chatSocket.onclose = function(e) {
+    console.error('Chat socket closed unexpectedly');
+};
+
+// Отправка сообщения через WebSocket
+document.getElementById('message-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const messageInput = document.getElementById('id_text');
+    const mediaInput = document.getElementById('id_media');
+    const message = messageInput.value.trim();
+    
+    if (message || mediaInput.files.length > 0) {
+        if (mediaInput.files.length > 0) {
+            // Чтение медиафайла как base64
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const mediaData = e.target.result;
+                chatSocket.send(JSON.stringify({
+                    'type': 'chat_message',
+                    'text': message,
+                    'media': mediaData
+                }));
+                messageInput.value = '';
+                mediaInput.value = '';
+            };
+            reader.readAsDataURL(mediaInput.files[0]);
+        } else {
+            chatSocket.send(JSON.stringify({
+                'type': 'chat_message',
+                'text': message
+            }));
+            messageInput.value = '';
+        }
+    }
+});
+
+// Редактирование сообщения
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('edit-message')) {
+        const messageId = e.target.dataset.messageId;
+        const messageDiv = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        const currentText = messageDiv.querySelector('.message-text').textContent;
+        
+        const newText = prompt('Измените сообщение:', currentText);
+        if (newText && newText !== currentText) {
+            chatSocket.send(JSON.stringify({
+                'type': 'edit_message',
+                'message_id': messageId,
+                'new_text': newText
+            }));
+        }
+    }
+    
+    // Удаление сообщения
+    if (e.target.classList.contains('delete-message')) {
+        if (confirm('Вы уверены, что хотите удалить это сообщение?')) {
+            const messageId = e.target.dataset.messageId;
+            chatSocket.send(JSON.stringify({
+                'type': 'delete_message',
+                'message_id': messageId
+            }));
+        }
+    }
+});
+
+// Автопрокрутка чата вниз
+const chatContainer = document.getElementById('chat-container');
+chatContainer.scrollTop = chatContainer.scrollHeight;
+</script>
+{% endblock %}
+{% endblock %}

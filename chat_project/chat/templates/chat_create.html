@@ -1,0 +1,50 @@
+{% extends 'chat/base.html' %}
+
+{% block title %}Создать чат{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>Создать новый чат</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button type="submit" class="btn btn-primary">Создать</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Поиск пользователей при вводе
+    const searchInput = document.querySelector('input[name="members_search"]');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value;
+            if (query.length > 2) {
+                fetch(`{% url 'search_users' %}?q=${query}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const resultsContainer = document.getElementById('search_results');
+                        resultsContainer.innerHTML = '';
+                        data.users.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.username;
+                            resultsContainer.appendChild(option);
+                        });
+                    });
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,7 +1,10 @@
 from django.urls import path
 from . import views
+from django.contrib.auth import views as auth_views
 
 urlpatterns = [
+    path('chats/', views.chat_list, name='chat_list'),  # публичная страница
+    path('accounts/login/', auth_views.LoginView.as_view(template_name='chat/login.html'), name='login'),
     # Аутентификация
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),

@@ -10,6 +10,8 @@ class Chat(models.Model):
     members = models.ManyToManyField(User, related_name="chats", verbose_name="Участники")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     is_group = models.BooleanField(default=False, verbose_name="Групповой чат")
+    is_deleted = models.BooleanField(default=False)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="admin_chats", verbose_name="Администратор")
 
     class Meta:

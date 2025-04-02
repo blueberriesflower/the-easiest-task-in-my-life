@@ -152,14 +152,12 @@ document.getElementById('message-form').addEventListener('submit', function(e) {
     
     if (message || mediaInput.files.length > 0) {
         if (mediaInput.files.length > 0) {
-            // Чтение медиафайла как base64
             const reader = new FileReader();
             reader.onload = function(e) {
-                const mediaData = e.target.result;
                 chatSocket.send(JSON.stringify({
                     'type': 'chat_message',
                     'text': message,
-                    'media': mediaData
+                    'media': e.target.result
                 }));
                 messageInput.value = '';
                 mediaInput.value = '';
